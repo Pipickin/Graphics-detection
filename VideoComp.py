@@ -4,7 +4,7 @@ import numpy as np
 
 
 class VideoComp:
-    def __init__(self, video_path, model_path, threshold=1.2):
+    def __init__(self, video_path: str, model_path: str, threshold: float = 1.2) -> None:
         self.video_path = video_path
         self.cap = cv.VideoCapture(video_path)
         self.model_path = model_path
@@ -18,49 +18,52 @@ class VideoComp:
         self.dict_time = {}
         self.step = 2
 
-    def get_frame(self, index, size=(128, 128)):
+    def get_frame(self, index: int, size: tuple = (128, 128)) -> np.ndarray:
         """Return the frame with the specified index from your video.
 
-        index: index of frame
-        size: size of frame
+        :param index: index of frame
+        :param size: size of frame
         :return: frame
+        :rtype: np.ndarray
         """
         self.cap.set(cv.CAP_PROP_POS_FRAMES, index)
         _, frame = self.cap.read()
         frame = cv.resize(frame, size) / 255
         return frame
 
-    def apply_encoder(self, frame):
+    def apply_encoder(self, frame: np.ndarray) -> np.ndarray:
         """Apply encoder to the frame.
 
-        frame: frame to which will be applied encoder
+        :param frame: frame to which will be applied encoder
         :return: vector/vectors
         """
         frame = np.expand_dims(frame, axis=0)
         return self.model.predict(frame)
 
     @staticmethod
-    def compare_encoded_frames(enc_frame1, enc_frame2):
+    def compare_encoded_frames(first_enc_frame: np.ndarray, second_enc_frame: np.ndarray) -> np.float64:
         """Apply encoder to frames and compare the resulting vectors.
 
-        enc_frame1: first encoded frame
-        enc_frame2: second encoded frame
+        :param first_enc_frame: first encoded frame
+        :param second_enc_frame: second encoded frame
         :return: MSE between the encoded frames
+        :rtype: np.float64
         """
-        # return tf.keras.losses.MSE(enc_frame1, enc_frame2).numpy()
-        return np.sqrt(np.sum((enc_frame1 - enc_frame2) ** 2))
+        # return tf.keras.losses.MSE(first_enc_frame, second_enc_frame).numpy()
+        return np.sqrt(np.sum((first_enc_frame - second_enc_frame) ** 2))
 
-    def compare_part_cap(self, start_index, end_index, threshold=1.2, step=2):
+    def compare_part_cap(self, start_index: int, end_index: int, threshold: float = 1.2, step: int = 2) -> dict:
         """Compare video frames from start_index to end_index with the denoted step.
         If error between frames is higher than threshold then add index into frame_code_part.
         Than create time_code_part where the frames' indexes converted into time format 00h.00m.00s.
         Return dictionary with the keys 'frames' for frame_code_part array and 'time' for time_code_part array.
 
-        start_index: index from which to start
-        end_index: index which need to finish compare
-        threshold: value to compare with error
-        step: step for the next index
+        :param start_index: index from which to start
+        :param end_index: index which need to finish compare
+        :param threshold: value to compare with error
+        :param step: step for the next index
         :return: dictionary with keys 'frames' and 'time'
+        :rtype: dict
         """
         if start_index + step > self.num_frames:
             raise ValueError("Start index is bigger than number os frames plus step")
@@ -86,28 +89,37 @@ class VideoComp:
         dict_time = {'time': time_code_part, 'frames': frames_code_part}
         return dict_time
 
-    def compare_cap(self):
+    def compare_cap(self) -> None:
         """Compare frames for all video with special step. If error between frames
         is higher than threshold then add index into dictionary for 2 format.
         First format is a frame index the second is time code (00h.00m.00s).
 
-        :return: Return dictionary with keys 'frames' and 'time'.
+        :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time.
+        :rtype: None
         """
         self.dict_time = self.compare_part_cap(0, self.num_frames, self.threshold, self.step)
 
-    def display_frame_by_index(self, index, size=(128, 128), wait=True):
+    def display_frame_by_index(self, index: int, size: tuple = (128, 128), wait: bool = True) -> None:
         """Display frame by index. With name 'frame number {index}'.
 
-        index: the index of the frame to be displayed
-        size: size of displayed frame
-        wait: True means the image won't be destroyed
+        :param index: the index of the frame to be displayed
+        :param size: size of displayed frame
+        :param wait: True means the image won't be destroyed
+        :return: displayed frame
+        :rtype: None
         """
         frame = self.get_frame(index, size)
         cv.imshow(f'frame number {index}', frame)
         if wait:
             cv.waitKey(0)
 
-    def frame2time(self, frame_index):
+    def frame2time(self, frame_index: int) -> str:
+        """Convert frame index into time format.
+
+        :param frame_index: int
+        :return: time converted from frame index
+        :rtype: str
+        """
         sec = frame_index // self.fps
         minute = 0 + sec // 60
         hour = 0 + minute // 60
@@ -116,9 +128,15 @@ class VideoComp:
         time = '%02dh.%02dm.%02ds' % (hour, minute, sec)
         return time
 
-    def time2frame(self, hour, minute, sec):
+    def time2frame(self, hour: int, minute: int, sec: int) -> int:
+        """Convert time format into frame index.
+
+        :param hour: number of hours
+        :param minute: number of minutes
+        :param sec: number of seconds
+        :return: frame index converted from time format
+        :rtype: int
+        """
         return (3600 * hour + minute * 60 + sec) * self.fps
-
-
 
 
