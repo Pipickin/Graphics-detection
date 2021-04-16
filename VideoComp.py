@@ -4,18 +4,26 @@ import numpy as np
 
 
 class VideoComp:
-    """This class is used for graphics detection in media content"""
+    """This class is used for graphics detection in media content
+
+    Class attribute:
+    str save_data_path: Path to the file where video info will be saved
+    """
+
+    save_data_path = 'saved_video_info.txt'
+
     def __init__(self, video_path: str, model_path: str,
                  threshold: float = 1.2, step: int = 2) -> None:
         """Initialize class object.
 
         :param video_path: path to the video
-        :param model_path: path to the model's folder
+        :param model_path: path to the model
         :param threshold: value to compare with error
         :param step: step for the next index in comparing
         :return: initialize class object
         :rtype: None
         """
+        self.video_path = video_path
         self.cap = cv.VideoCapture(video_path)
         self.model = tf.keras.models.load_model(model_path)
         self._threshold = threshold
@@ -23,6 +31,7 @@ class VideoComp:
         self.num_frames = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT))
         self.dict_time = {}
         self._step = step
+        self.num_changes = None
 
     def get_frame(self, index: int, size: tuple = (128, 128)) -> np.ndarray:
         """Return the frame with the specified index from your video.
@@ -99,15 +108,20 @@ class VideoComp:
         dict_time = {'time': time_code_part, 'frames': frames_code_part}
         return dict_time
 
-    def compare_cap(self) -> None:
+    def compare_cap(self, save_path: str = save_data_path) -> None:
         """Compare frames for all video with special step. If error between frames
         is higher than threshold then add index into dictionary for 2 format.
         First format is a frame index the second is time code (00h.00m.00s).
+        Save timecodes data into save_path file.
 
-        :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time.
+        :param save_path: path to file where data will be saved
+        :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time
+        and save timecodes to save_path file. Sets self.num_changes as len of self.dict_time
         :rtype: None
         """
         self.dict_time = self.compare_part_cap(0, self.num_frames, self._threshold, self._step)
+        self.num_changes = len(self.dict_time['time'])
+        self.save_dict_time(save_path)
 
     def display_frame_by_index(self, index: int, size: tuple = (128, 128),
                                wait: bool = True, dynamic: bool = False) -> None:
@@ -153,6 +167,25 @@ class VideoComp:
         """
         return (3600 * hour + minute * 60 + sec) * self.fps
 
+    def save_dict_time(self, save_path: str = save_data_path) -> None:
+        """Save self.dict_time to file.
+
+        :param save_path: path to file where data will be saved
+        :return: save self.dict_time into file
+        :rtype: None
+        """
+        bound = '\n' + '=' * 100
+        video_info = '\nInfo:\n' \
+                     'Video: %s\n' \
+                     'Number of changes: %s\n' \
+                     'Step: %s\t Threshold: %s' \
+                     % (self.video_path, self.num_changes, self.step, self.threshold)
+        time_info = '\nTime codes: {time}\n' \
+                    'Frame codes: {frames}'.format(**self.dict_time)
+        with open(save_path, 'a') as file:
+            file.write(bound + video_info + time_info)
+            
+    # getters and setters for step and threshold
     @property
     def step(self) -> int:
         """Get self._step
