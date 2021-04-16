@@ -18,11 +18,11 @@ class VideoComp:
         """
         self.cap = cv.VideoCapture(video_path)
         self.model = tf.keras.models.load_model(model_path)
-        self.threshold = threshold
+        self._threshold = threshold
         self.fps = self.cap.get(cv.CAP_PROP_FPS)
         self.num_frames = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT))
         self.dict_time = {}
-        self.step = step
+        self._step = step
 
     def get_frame(self, index: int, size: tuple = (128, 128)) -> np.ndarray:
         """Return the frame with the specified index from your video.
@@ -57,8 +57,9 @@ class VideoComp:
         :return: MSE between the encoded frames
         :rtype: np.float64
         """
-        return tf.keras.losses.MSE(first_enc_frame, second_enc_frame).numpy()
-        # return np.sqrt(np.sum((first_enc_frame - second_enc_frame) ** 2))
+        error = np.sqrt(np.sum((first_enc_frame - second_enc_frame) ** 2))
+        # error = tf.keras.losses.MSE(first_enc_frame, second_enc_frame).numpy()
+        return error
 
     def compare_part_cap(self, start_index: int, end_index: int,
                          threshold: float = 1.2, step: int = 2) -> dict:
@@ -106,7 +107,7 @@ class VideoComp:
         :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time.
         :rtype: None
         """
-        self.dict_time = self.compare_part_cap(0, self.num_frames, self.threshold, self.step)
+        self.dict_time = self.compare_part_cap(0, self.num_frames, self._threshold, self._step)
 
     def display_frame_by_index(self, index: int, size: tuple = (128, 128),
                                wait: bool = True, dynamic: bool = False) -> None:
@@ -154,16 +155,16 @@ class VideoComp:
 
     @property
     def step(self) -> int:
-        """Get self.step
+        """Get self._step
 
-        :return: self.step
+        :return: self._step
         :rtype: int
         """
-        return self.step
+        return self._step
 
     @step.setter
     def step(self, step: int) -> None:
-        """Set self.step.
+        """Set self._step.
 
         :param step: step for the next index in comparing
         :return: set step
@@ -171,25 +172,23 @@ class VideoComp:
         """
         if step < 1:
             raise ValueError("Step should be positive integer")
-        self.step = step
+        self._step = step
 
     @property
     def threshold(self) -> float:
-        """Get self.threshold
+        """Get self._threshold
 
-        :return: self.threshold
+        :return: self._threshold
         :rtype: float
         """
-        return self.threshold
+        return self._threshold
 
     @threshold.setter
     def threshold(self, threshold: float) -> None:
-        """Set self.threshold.
+        """Set self._threshold.
 
         :param threshold: value to compare with error
         :return: set threshold
         :rtype: None
         """
-        if threshold <= 0:
-            raise ValueError("Threshold should be positive number")
-        self.threshold = threshold
+        self._threshold = threshold
