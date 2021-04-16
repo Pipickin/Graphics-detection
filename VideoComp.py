@@ -4,19 +4,25 @@ import numpy as np
 
 
 class VideoComp:
-    def __init__(self, video_path: str, model_path: str, threshold: float = 1.2) -> None:
-        self.video_path = video_path
+    """This class is used for graphics detection in media content"""
+    def __init__(self, video_path: str, model_path: str,
+                 threshold: float = 1.2, step: int = 2) -> None:
+        """Initialize class object.
+
+        :param video_path: path to the video
+        :param model_path: path to the model's folder
+        :param threshold: value to compare with error
+        :param step: step for the next index in comparing
+        :return: initialize class object
+        :rtype: None
+        """
         self.cap = cv.VideoCapture(video_path)
-        self.model_path = model_path
         self.model = tf.keras.models.load_model(model_path)
         self.threshold = threshold
         self.fps = self.cap.get(cv.CAP_PROP_FPS)
         self.num_frames = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT))
-        # self.current_index = 0
-        # self.frames_code = []
-        # self.time_code = []
         self.dict_time = {}
-        self.step = 2
+        self.step = step
 
     def get_frame(self, index: int, size: tuple = (128, 128)) -> np.ndarray:
         """Return the frame with the specified index from your video.
@@ -36,12 +42,14 @@ class VideoComp:
 
         :param frame: frame to which will be applied encoder
         :return: vector/vectors
+        :rtype: np.ndarray
         """
         frame = np.expand_dims(frame, axis=0)
         return self.model.predict(frame)
 
     @staticmethod
-    def compare_encoded_frames(first_enc_frame: np.ndarray, second_enc_frame: np.ndarray) -> np.float64:
+    def compare_encoded_frames(first_enc_frame: np.ndarray,
+                               second_enc_frame: np.ndarray) -> np.float64:
         """Apply encoder to frames and compare the resulting vectors.
 
         :param first_enc_frame: first encoded frame
@@ -49,10 +57,11 @@ class VideoComp:
         :return: MSE between the encoded frames
         :rtype: np.float64
         """
-        # return tf.keras.losses.MSE(first_enc_frame, second_enc_frame).numpy()
-        return np.sqrt(np.sum((first_enc_frame - second_enc_frame) ** 2))
+        return tf.keras.losses.MSE(first_enc_frame, second_enc_frame).numpy()
+        # return np.sqrt(np.sum((first_enc_frame - second_enc_frame) ** 2))
 
-    def compare_part_cap(self, start_index: int, end_index: int, threshold: float = 1.2, step: int = 2) -> dict:
+    def compare_part_cap(self, start_index: int, end_index: int,
+                         threshold: float = 1.2, step: int = 2) -> dict:
         """Compare video frames from start_index to end_index with the denoted step.
         If error between frames is higher than threshold then add index into frame_code_part.
         Than create time_code_part where the frames' indexes converted into time format 00h.00m.00s.
@@ -99,15 +108,19 @@ class VideoComp:
         """
         self.dict_time = self.compare_part_cap(0, self.num_frames, self.threshold, self.step)
 
-    def display_frame_by_index(self, index: int, size: tuple = (128, 128), wait: bool = True) -> None:
+    def display_frame_by_index(self, index: int, size: tuple = (128, 128),
+                               wait: bool = True, dynamic: bool = False) -> None:
         """Display frame by index. With name 'frame number {index}'.
 
         :param index: the index of the frame to be displayed
         :param size: size of displayed frame
         :param wait: True means the image won't be destroyed
+        :param dynamic: True means the image can be resized
         :return: displayed frame
         :rtype: None
         """
+        if dynamic:
+            cv.namedWindow(f'frame number {index}', cv.WINDOW_NORMAL)
         frame = self.get_frame(index, size)
         cv.imshow(f'frame number {index}', frame)
         if wait:
@@ -139,4 +152,44 @@ class VideoComp:
         """
         return (3600 * hour + minute * 60 + sec) * self.fps
 
+    @property
+    def step(self) -> int:
+        """Get self.step
 
+        :return: self.step
+        :rtype: int
+        """
+        return self.step
+
+    @step.setter
+    def step(self, step: int) -> None:
+        """Set self.step.
+
+        :param step: step for the next index in comparing
+        :return: set step
+        :rtype: None
+        """
+        if step < 1:
+            raise ValueError("Step should be positive integer")
+        self.step = step
+
+    @property
+    def threshold(self) -> float:
+        """Get self.threshold
+
+        :return: self.threshold
+        :rtype: float
+        """
+        return self.threshold
+
+    @threshold.setter
+    def threshold(self, threshold: float) -> None:
+        """Set self.threshold.
+
+        :param threshold: value to compare with error
+        :return: set threshold
+        :rtype: None
+        """
+        if threshold <= 0:
+            raise ValueError("Threshold should be positive number")
+        self.threshold = threshold
