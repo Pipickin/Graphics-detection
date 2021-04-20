@@ -8,9 +8,11 @@ class VideoComp:
 
     Class attribute:
     str save_data_path: Path to the file where video info will be saved
+    str save_graphic_timecodes_path: Path to the file where timecodes will be saved
     """
 
     save_data_path = 'saved_video_info.txt'
+    save_graphic_timecodes_path = 'graphic_timecodes.txt'
 
     def __init__(self, video_path: str, model_path: str,
                  threshold: float = 1.2, step: int = 2) -> None:
@@ -32,6 +34,7 @@ class VideoComp:
         self.dict_time = {}
         self._step = step
         self.num_changes = None
+        self.graphic_timecodes = {}
 
     def get_frame(self, index: int, size: tuple = (128, 128)) -> np.ndarray:
         """Return the frame with the specified index from your video.
@@ -43,6 +46,7 @@ class VideoComp:
         """
         self.cap.set(cv.CAP_PROP_POS_FRAMES, index)
         _, frame = self.cap.read()
+        frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
         frame = cv.resize(frame, size) / 255
         return frame
 
@@ -103,25 +107,49 @@ class VideoComp:
                 frames_code_part.append(index)
             curr_encoded_frame = next_encoded_frame
 
-        time_code_part = [self.frame2time(frame_code) for frame_code in frames_code_part]
+        time_code_part = [self.frame2time(frame_code, self.fps) for frame_code in frames_code_part]
         print(time_code_part)
         dict_time = {'time': time_code_part, 'frames': frames_code_part}
         return dict_time
 
-    def compare_cap(self, save_path: str = save_data_path) -> None:
+    def compare_cap(self, save_data_path: str = save_data_path,
+                    save_graphic_path: str = save_graphic_timecodes_path,
+                    diff_frame: int = 5) -> None:
         """Compare frames for all video with special step. If error between frames
         is higher than threshold then add index into dictionary for 2 format.
         First format is a frame index the second is time code (00h.00m.00s).
         Save timecodes data into save_path file.
 
-        :param save_path: path to file where data will be saved
-        :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time
-        and save timecodes to save_path file. Sets self.num_changes as len of self.dict_time
+        :param save_data_path: path to file where data will be saved
+        :param save_graphic_path: path to file where graphic timecodes will be saved
+        :param diff_frame: difference between adjacent frames
+        :return: Sets the dictionary with keys 'frames' and 'time' to self.dict_time,
+        sets self.graphic_timecodes and save the data and the timecodes
+        to save_data_path file and save_graphic_path respectively.
+        Sets self.num_changes as len of self.dict_time
         :rtype: None
         """
         self.dict_time = self.compare_part_cap(0, self.num_frames, self._threshold, self._step)
+        self.set_graphic_timecodes(diff_frame)
         self.num_changes = len(self.dict_time['time'])
-        self.save_dict_time(save_path)
+        self.save_dict_time(save_data_path)
+        self.save_graphic_timecodes(save_graphic_path)
+
+    def set_graphic_timecodes(self, index_diff: int = 5) -> None:
+        """Find graphic timecodes from self.dict_time. If the difference between
+         adjacent frames in self.dict_time['frame'] less then index_diff
+         then consider at this second was detected graphic.
+
+        :param index_diff: difference between adjacent frames
+        :return: Set self.graphic_timecodes
+        :rtype: None
+        """
+        graph_indexes = [self.dict_time['frames'][i]
+                         for i in range(len(self.dict_time['frames']) - 1)
+                         if self.dict_time['frames'][i + 1] - self.dict_time['frames'][i] < index_diff]
+        graphic_timecodes = [self.frame2time(graph_index, self.fps)
+                             for graph_index in graph_indexes]
+        self.graphic_timecodes = sorted(set(graphic_timecodes))
 
     def display_frame_by_index(self, index: int, size: tuple = (128, 128),
                                wait: bool = True, dynamic: bool = False) -> None:
@@ -141,32 +169,6 @@ class VideoComp:
         if wait:
             cv.waitKey(0)
 
-    def frame2time(self, frame_index: int) -> str:
-        """Convert frame index into time format.
-
-        :param frame_index: int
-        :return: time converted from frame index
-        :rtype: str
-        """
-        sec = frame_index // self.fps
-        minute = 0 + sec // 60
-        hour = 0 + minute // 60
-        sec = sec % 60
-        minute = minute % 60
-        time = '%02dh.%02dm.%02ds' % (hour, minute, sec)
-        return time
-
-    def time2frame(self, hour: int, minute: int, sec: int) -> int:
-        """Convert time format into frame index.
-
-        :param hour: number of hours
-        :param minute: number of minutes
-        :param sec: number of seconds
-        :return: frame index converted from time format
-        :rtype: int
-        """
-        return (3600 * hour + minute * 60 + sec) * self.fps
-
     def save_dict_time(self, save_path: str = save_data_path) -> None:
         """Save self.dict_time to file.
 
@@ -184,6 +186,52 @@ class VideoComp:
                     'Frame codes: {frames}'.format(**self.dict_time)
         with open(save_path, 'a') as file:
             file.write(bound + video_info + time_info)
+
+    def save_graphic_timecodes(self, save_path: str = save_graphic_timecodes_path) -> None:
+        """Save self.graphic_timecodes to file.
+
+        :param save_path: path to file where timecodes will be saved
+        :return: save self.graphic_timecodes into file
+        :rtype: None
+        """
+        bound = '\n' + '=' * 100
+        video_info = '\nInfo:\n' \
+                     'Video: %s\n' \
+                     'Step: %s\t Threshold: %s' \
+                     % (self.video_path, self.step, self.threshold)
+        time_info = '\nGraphics timecodes: \n{}'.format(self.graphic_timecodes)
+        with open(save_path, 'a') as file:
+            file.write(bound + video_info + time_info)
+
+    @staticmethod
+    def frame2time(frame_index: int, fps: int) -> str:
+        """Convert frame index into time format.
+
+        :param frame_index: int
+        :param fps: frame per second
+        :return: time converted from frame index
+        :rtype: str
+        """
+        sec = frame_index // fps
+        minute = 0 + sec // 60
+        hour = 0 + minute // 60
+        sec = sec % 60
+        minute = minute % 60
+        time = '%02dh.%02dm.%02ds' % (hour, minute, sec)
+        return time
+
+    @staticmethod
+    def time2frame(hour: int, minute: int, sec: int, fps: int) -> int:
+        """Convert time format into frame index.
+
+        :param hour: number of hours
+        :param minute: number of minutes
+        :param sec: number of seconds
+        :param fps: frame per second
+        :return: frame index converted from time format
+        :rtype: int
+        """
+        return (3600 * hour + minute * 60 + sec) * fps
             
     # getters and setters for step and threshold
     @property
